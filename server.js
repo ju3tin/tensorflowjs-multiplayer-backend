@@ -1,293 +1,134 @@
-const WebSocket = require("ws");
+const express = require("express");
+const cors = require("cors");
+const { WebSocketServer } = require("ws");
 
-const PORT = process.env.PORT || 8080;
-const MAX_PLAYERS = 4;
-
-
-const server = new WebSocket.Server({
-    port: PORT
-});
+const PORT = 8080;
 
 
-let players = {};
+const app = express();
+
+app.use(cors());
+app.use(express.json());
 
 
 
-function createPlayer(ws)
-{
+// -------------------------
+// GAME DATA
+// -------------------------
 
-    const id =
-        "player_" +
-        Math.random()
+const rooms = new Map();
+
+
+// room example:
+//
+// rooms = {
+//   ABC123: {
+//      players:Set()
+//   }
+// }
+
+
+
+function createRoomId(){
+
+    return Math.random()
         .toString(36)
-        .substring(2,8);
+        .substring(2,8)
+        .toUpperCase();
+
+}
 
 
-    players[id] = {
 
-        id:id,
+function getRoom(roomId){
 
-        tensorflowReady:false,
+    if(!rooms.has(roomId)){
 
-        // MoveNet 17 keypoints
-        pose:[],
+        rooms.set(roomId,{
 
-        position:{
-            x:0,
-            y:0,
-            z:0
-        },
+            players:new Set()
 
-        rotation:{
-            x:0,
-            y:0,
-            z:0
-        },
+        });
 
-        animation:"idle",
-
-        socket:ws
-    };
+    }
 
 
-    return id;
+    return rooms.get(roomId);
 
 }
 
 
 
 
-function getPublicPlayers()
-{
-
-    return Object.values(players)
-    .map(player=>{
-
-        return {
-
-            id:
-            player.id,
+function removePlayer(socket){
 
 
-            tensorflowReady:
-            player.tensorflowReady,
+    if(!socket.roomId)
+        return;
 
 
-            pose:
-            player.pose,
-
-
-            position:
-            player.position,
-
-
-            rotation:
-            player.rotation,
-
-
-            animation:
-            player.animation
-
-        };
-
-    });
-
-}
+    const room =
+        rooms.get(socket.roomId);
 
 
 
+    if(room){
 
 
-function broadcast()
-{
-
-    const message =
-    JSON.stringify({
-
-        type:"state",
-
-        playerCount:
-        Object.keys(players).length,
-
-
-        players:
-        getPublicPlayers()
-
-    });
+        room.players.delete(socket);
 
 
 
-    Object.values(players)
-    .forEach(player=>{
+        console.log(
+            socket.playerId,
+            "left room",
+            socket.roomId
+        );
 
 
-        if(
-            player.socket.readyState
-            === WebSocket.OPEN
-        )
-        {
 
-            player.socket.send(message);
+        if(room.players.size === 0){
+
+            rooms.delete(socket.roomId);
+
+
+            console.log(
+                "Deleted empty room",
+                socket.roomId
+            );
 
         }
-
-
-    });
-
-
-}
-
-
-
-
-
-server.on("connection",(ws)=>{
-
-
-    if(
-        Object.keys(players).length
-        >= MAX_PLAYERS
-    )
-    {
-
-        ws.send(JSON.stringify({
-
-            type:"full",
-
-            message:"Server full"
-
-        }));
-
-        ws.close();
-
-        return;
 
     }
 
 
 
-    const id =
-    createPlayer(ws);
+    socket.roomId = null;
 
-
-
-    console.log(
-        id,
-        "connected"
-    );
-
-
-
-    ws.send(JSON.stringify({
-
-        type:"welcome",
-
-        id:id,
-
-        playerCount:
-        Object.keys(players).length
-
-    }));
+}
 
 
 
 
 
-    ws.on("message",(data)=>{
-
-
-        const message =
-        JSON.parse(data);
-
-
-        const player =
-        players[id];
-
-
-        if(!player)
-            return;
+// -------------------------
+// HTTP API
+// -------------------------
 
 
 
-
-        // TensorFlow loaded
-
-        if(
-            message.type === "tf_ready"
-        )
-        {
-
-            player.tensorflowReady =
-            true;
+app.get(
+"/api/status",
+(req,res)=>{
 
 
-            console.log(
-                id,
-                "TensorFlow ready"
-            );
+    res.json({
 
-        }
+        online:true,
 
+        service:"motion-game-server",
 
-
-
-
-        // MoveNet pose data
-
-        if(
-            message.type === "pose"
-        )
-        {
-
-            player.pose =
-            message.keypoints;
-
-
-        }
-
-
-
-
-
-        // Player movement
-
-        if(
-            message.type === "move"
-        )
-        {
-
-            player.position =
-            message.position;
-
-
-            player.rotation =
-            message.rotation;
-
-
-            player.animation =
-            message.animation ||
-            "idle";
-
-        }
-
-
-    });
-
-
-
-
-
-    ws.on("close",()=>{
-
-
-        console.log(
-            id,
-            "disconnected"
-        );
-
-
-        delete players[id];
-
+        time:Date.now()
 
     });
 
@@ -298,17 +139,338 @@ server.on("connection",(ws)=>{
 
 
 
-// Broadcast 20 times per second
+app.post(
+"/api/rooms/create",
+(req,res)=>{
 
-setInterval(()=>{
 
-    broadcast();
+    const roomId =
+        createRoomId();
 
-},50);
+
+
+    rooms.set(roomId,{
+
+        players:new Set()
+
+    });
+
+
+
+    console.log(
+        "Created room",
+        roomId
+    );
+
+
+
+    res.json({
+
+        roomId
+
+    });
+
+
+});
+
+
+
+
+
+
+app.get(
+"/api/rooms",
+(req,res)=>{
+
+
+    const list =
+        Array.from(
+            rooms.keys()
+        );
+
+
+
+    res.json(list);
+
+
+});
+
+
+
+
+
+// -------------------------
+// START HTTP SERVER
+// -------------------------
+
+
+const httpServer =
+app.listen(
+PORT,
+()=>{
+
+
+console.log(
+`HTTP server running on ${PORT}`
+);
+
+
+});
+
+
+
+
+// -------------------------
+// WEBSOCKET SERVER
+// -------------------------
+
+
+const wss =
+new WebSocketServer({
+
+    server:httpServer
+
+});
+
+
+
+
+
+wss.on(
+"connection",
+(socket)=>{
+
+
+console.log(
+"WebSocket connected"
+);
+
+
+
+socket.roomId = null;
+
+socket.playerId = null;
+
+
+
+
+
+socket.on(
+"message",
+(raw)=>{
+
+
+let message;
+
+
+
+try{
+
+message =
+JSON.parse(
+raw.toString()
+);
+
+
+}
+catch(err){
+
+console.log(
+"Bad message"
+);
+
+return;
+
+}
+
+
+
+
+
+
+// -------------------------
+// JOIN ROOM
+// -------------------------
+
+
+if(message.type==="join"){
+
+
+
+removePlayer(socket);
+
+
+
+socket.roomId =
+message.roomId;
+
+
+
+socket.playerId =
+message.playerId;
+
+
+
+const room =
+getRoom(
+message.roomId
+);
+
+
+
+room.players.add(socket);
+
 
 
 
 console.log(
-    "WebSocket server running on port",
-    PORT
+
+`${message.playerId} joined ${message.roomId}`
+
 );
+
+
+
+
+socket.send(JSON.stringify({
+
+    type:"joined",
+
+    roomId:message.roomId,
+
+    playerId:message.playerId
+
+}));
+
+
+
+return;
+
+}
+
+
+
+
+
+
+
+// -------------------------
+// MOTION DATA
+// -------------------------
+
+
+if(message.type==="motion"){
+
+
+
+if(!socket.roomId)
+    return;
+
+
+
+const room =
+rooms.get(
+socket.roomId
+);
+
+
+
+if(!room)
+    return;
+
+
+
+
+
+room.players.forEach(
+(client)=>{
+
+
+if(
+client !== socket &&
+client.readyState === 1
+){
+
+
+client.send(
+JSON.stringify(message)
+);
+
+
+}
+
+
+
+});
+
+
+return;
+
+}
+
+
+
+
+
+
+// -------------------------
+// LEAVE
+// -------------------------
+
+
+if(message.type==="leave"){
+
+
+removePlayer(socket);
+
+
+}
+
+
+
+
+
+});
+
+
+
+
+
+
+
+socket.on(
+"close",
+()=>{
+
+
+removePlayer(socket);
+
+
+
+console.log(
+"WebSocket closed"
+);
+
+
+});
+
+
+
+
+
+socket.on(
+"error",
+(err)=>{
+
+
+console.log(
+"Socket error",
+err.message
+);
+
+
+});
+
+
+
+});
