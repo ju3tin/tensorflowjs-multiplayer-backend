@@ -1,16 +1,23 @@
 {
   "name": "multiplayer-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Motion capture multiplayer game server",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [],
+  "keywords": [
+    "websocket",
+    "multiplayer",
+    "motion-capture",
+    "mediapipe"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
     "ws": "^8.21.0"
   }
 }
