@@ -1,124 +1,181 @@
 const WebSocket = require("ws");
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 const MAX_PLAYERS = 4;
+
 
 const server = new WebSocket.Server({
     port: PORT
 });
 
+
 let players = {};
 
 
-function createPlayer(ws) {
 
-    const id = "player_" + Math.random()
+function createPlayer(ws)
+{
+
+    const id =
+        "player_" +
+        Math.random()
         .toString(36)
-        .substring(2, 8);
+        .substring(2,8);
+
 
     players[id] = {
-        id,
-        connected: true,
 
-        tensorflowReady: false,
+        id:id,
 
-        position: {
-            x: 0,
-            y: 0,
-            z: 0
+        tensorflowReady:false,
+
+        // MoveNet 17 keypoints
+        pose:[],
+
+        position:{
+            x:0,
+            y:0,
+            z:0
         },
 
-        rotation: {
-            x: 0,
-            y: 0,
-            z: 0
+        rotation:{
+            x:0,
+            y:0,
+            z:0
         },
 
-        animation: "idle",
+        animation:"idle",
 
-        socket: ws
+        socket:ws
     };
 
+
     return id;
+
 }
 
 
-function getPublicPlayers() {
+
+
+function getPublicPlayers()
+{
 
     return Object.values(players)
-        .map(player => {
+    .map(player=>{
 
-            return {
-                id: player.id,
+        return {
 
-                tensorflowReady:
-                    player.tensorflowReady,
+            id:
+            player.id,
 
-                position:
-                    player.position,
 
-                rotation:
-                    player.rotation,
+            tensorflowReady:
+            player.tensorflowReady,
 
-                animation:
-                    player.animation
-            };
 
-        });
+            pose:
+            player.pose,
+
+
+            position:
+            player.position,
+
+
+            rotation:
+            player.rotation,
+
+
+            animation:
+            player.animation
+
+        };
+
+    });
 
 }
 
 
-function broadcast() {
 
-    const message = JSON.stringify({
 
-        type: "state",
+
+function broadcast()
+{
+
+    const message =
+    JSON.stringify({
+
+        type:"state",
 
         playerCount:
-            Object.keys(players).length,
+        Object.keys(players).length,
+
 
         players:
-            getPublicPlayers()
+        getPublicPlayers()
 
     });
 
 
+
     Object.values(players)
-        .forEach(player => {
+    .forEach(player=>{
 
-            if(player.socket.readyState === WebSocket.OPEN)
-            {
-                player.socket.send(message);
-            }
 
-        });
+        if(
+            player.socket.readyState
+            === WebSocket.OPEN
+        )
+        {
+
+            player.socket.send(message);
+
+        }
+
+
+    });
+
 
 }
 
 
 
-server.on("connection", ws => {
 
 
-    if(Object.keys(players).length >= MAX_PLAYERS)
+server.on("connection",(ws)=>{
+
+
+    if(
+        Object.keys(players).length
+        >= MAX_PLAYERS
+    )
     {
+
         ws.send(JSON.stringify({
+
             type:"full",
+
             message:"Server full"
+
         }));
 
         ws.close();
+
         return;
+
     }
 
 
-    const id = createPlayer(ws);
+
+    const id =
+    createPlayer(ws);
+
+
 
     console.log(
         id,
         "connected"
     );
+
 
 
     ws.send(JSON.stringify({
@@ -128,20 +185,23 @@ server.on("connection", ws => {
         id:id,
 
         playerCount:
-            Object.keys(players).length
+        Object.keys(players).length
 
     }));
 
 
-    ws.on("message", data => {
+
+
+
+    ws.on("message",(data)=>{
 
 
         const message =
-            JSON.parse(data);
+        JSON.parse(data);
 
 
         const player =
-            players[id];
+        players[id];
 
 
         if(!player)
@@ -149,36 +209,64 @@ server.on("connection", ws => {
 
 
 
-        // TensorFlow.js loaded
 
-        if(message.type === "tf_ready")
+        // TensorFlow loaded
+
+        if(
+            message.type === "tf_ready"
+        )
         {
-            player.tensorflowReady = true;
+
+            player.tensorflowReady =
+            true;
+
 
             console.log(
                 id,
                 "TensorFlow ready"
             );
+
         }
 
 
 
-        // Movement update
 
-        if(message.type === "move")
+
+        // MoveNet pose data
+
+        if(
+            message.type === "pose"
+        )
+        {
+
+            player.pose =
+            message.keypoints;
+
+
+        }
+
+
+
+
+
+        // Player movement
+
+        if(
+            message.type === "move"
+        )
         {
 
             player.position =
-                message.position;
+            message.position;
 
 
             player.rotation =
-                message.rotation;
+            message.rotation;
 
 
             player.animation =
-                message.animation || "idle";
-
+            message.animation ||
+            "idle";
 
         }
 
@@ -187,7 +275,9 @@ server.on("connection", ws => {
 
 
 
-    ws.on("close", ()=>{
+
+
+    ws.on("close",()=>{
 
 
         console.log(
@@ -205,7 +295,10 @@ server.on("connection", ws => {
 });
 
 
-// Send game state 20 times/sec
+
+
+
+// Broadcast 20 times per second
 
 setInterval(()=>{
 
@@ -216,6 +309,6 @@ setInterval(()=>{
 
 
 console.log(
-    "WebSocket server running on",
+    "WebSocket server running on port",
     PORT
 );
