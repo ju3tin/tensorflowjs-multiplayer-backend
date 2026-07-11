@@ -1,119 +1,74 @@
+/*
+ Motion Game Backend
+
+ Handles:
+
+ HTTP API
+ WebSocket Server
+ Rooms
+ Games
+ Motion Relay
+
+ Render compatible
+*/
+
+
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
 const { WebSocketServer } = require("ws");
 
-const PORT = 8080;
+
+require("./games");
+
+
+const roomRoutes =
+require("./routes/rooms");
+
+
+const gameRoutes =
+require("./routes/games");
+
+
+const setupSockets =
+require("./websocket/socket");
+
+
+
+const PORT =
+process.env.PORT || 8080;
+
+
+
+console.log("==============================");
+console.log(" Motion Game Server Starting ");
+console.log("==============================");
+
 
 
 const app = express();
 
+
 app.use(cors());
+
 app.use(express.json());
 
 
 
-// -------------------------
-// GAME DATA
-// -------------------------
 
-const rooms = new Map();
+app.use((req,res,next)=>{
 
+console.log(
+"[HTTP]",
+req.method,
+req.url
+);
 
-// room example:
-//
-// rooms = {
-//   ABC123: {
-//      players:Set()
-//   }
-// }
+next();
+
+});
 
 
-
-function createRoomId(){
-
-    return Math.random()
-        .toString(36)
-        .substring(2,8)
-        .toUpperCase();
-
-}
-
-
-
-function getRoom(roomId){
-
-    if(!rooms.has(roomId)){
-
-        rooms.set(roomId,{
-
-            players:new Set()
-
-        });
-
-    }
-
-
-    return rooms.get(roomId);
-
-}
-
-
-
-
-function removePlayer(socket){
-
-
-    if(!socket.roomId)
-        return;
-
-
-    const room =
-        rooms.get(socket.roomId);
-
-
-
-    if(room){
-
-
-        room.players.delete(socket);
-
-
-
-        console.log(
-            socket.playerId,
-            "left room",
-            socket.roomId
-        );
-
-
-
-        if(room.players.size === 0){
-
-            rooms.delete(socket.roomId);
-
-
-            console.log(
-                "Deleted empty room",
-                socket.roomId
-            );
-
-        }
-
-    }
-
-
-
-    socket.roomId = null;
-
-}
-
-
-
-
-
-// -------------------------
-// HTTP API
-// -------------------------
 
 
 
@@ -122,15 +77,17 @@ app.get(
 (req,res)=>{
 
 
-    res.json({
+res.json({
 
-        online:true,
+online:true,
 
-        service:"motion-game-server",
+service:
+"motion-game-server",
 
-        time:Date.now()
+time:
+Date.now()
 
-    });
+});
 
 
 });
@@ -138,339 +95,54 @@ app.get(
 
 
 
-
-app.post(
-"/api/rooms/create",
-(req,res)=>{
-
-
-    const roomId =
-        createRoomId();
-
-
-
-    rooms.set(roomId,{
-
-        players:new Set()
-
-    });
-
-
-
-    console.log(
-        "Created room",
-        roomId
-    );
-
-
-
-    res.json({
-
-        roomId
-
-    });
-
-
-});
-
-
-
-
-
-
-app.get(
+app.use(
 "/api/rooms",
-(req,res)=>{
-
-
-    const list =
-        Array.from(
-            rooms.keys()
-        );
-
-
-
-    res.json(list);
-
-
-});
-
-
-
-
-
-// -------------------------
-// START HTTP SERVER
-// -------------------------
-
-
-const httpServer =
-app.listen(
-PORT,
-()=>{
-
-
-console.log(
-`HTTP server running on ${PORT}`
+roomRoutes
 );
 
 
-});
+
+app.use(
+"/api/games",
+gameRoutes
+);
 
 
 
 
-// -------------------------
-// WEBSOCKET SERVER
-// -------------------------
+
+const server =
+http.createServer(app);
+
 
 
 const wss =
 new WebSocketServer({
 
-    server:httpServer
+server
 
 });
 
 
 
+setupSockets(wss);
 
 
-wss.on(
-"connection",
-(socket)=>{
 
-
-console.log(
-"WebSocket connected"
-);
-
-
-
-socket.roomId = null;
-
-socket.playerId = null;
-
-
-
-
-
-socket.on(
-"message",
-(raw)=>{
-
-
-let message;
-
-
-
-try{
-
-message =
-JSON.parse(
-raw.toString()
-);
-
-
-}
-catch(err){
-
-console.log(
-"Bad message"
-);
-
-return;
-
-}
-
-
-
-
-
-
-// -------------------------
-// JOIN ROOM
-// -------------------------
-
-
-if(message.type==="join"){
-
-
-
-removePlayer(socket);
-
-
-
-socket.roomId =
-message.roomId;
-
-
-
-socket.playerId =
-message.playerId;
-
-
-
-const room =
-getRoom(
-message.roomId
-);
-
-
-
-room.players.add(socket);
-
-
-
-
-console.log(
-
-`${message.playerId} joined ${message.roomId}`
-
-);
-
-
-
-
-socket.send(JSON.stringify({
-
-    type:"joined",
-
-    roomId:message.roomId,
-
-    playerId:message.playerId
-
-}));
-
-
-
-return;
-
-}
-
-
-
-
-
-
-
-// -------------------------
-// MOTION DATA
-// -------------------------
-
-
-if(message.type==="motion"){
-
-
-
-if(!socket.roomId)
-    return;
-
-
-
-const room =
-rooms.get(
-socket.roomId
-);
-
-
-
-if(!room)
-    return;
-
-
-
-
-
-room.players.forEach(
-(client)=>{
-
-
-if(
-client !== socket &&
-client.readyState === 1
-){
-
-
-client.send(
-JSON.stringify(message)
-);
-
-
-}
-
-
-
-});
-
-
-return;
-
-}
-
-
-
-
-
-
-// -------------------------
-// LEAVE
-// -------------------------
-
-
-if(message.type==="leave"){
-
-
-removePlayer(socket);
-
-
-}
-
-
-
-
-
-});
-
-
-
-
-
-
-
-socket.on(
-"close",
+server.listen(
+PORT,
 ()=>{
 
 
-removePlayer(socket);
-
-
-
 console.log(
-"WebSocket closed"
+"[SERVER] Running:",
+PORT
 );
 
 
-});
-
-
-
-
-
-socket.on(
-"error",
-(err)=>{
-
-
 console.log(
-"Socket error",
-err.message
+"[WSS] Ready"
 );
-
-
-});
-
 
 
 });
