@@ -1,0 +1,20 @@
+{
+  "id":"dance-001",
+  "name":"Dance Battle",
+
+  "motion":{
+    "pose":true,
+    "hands":true
+  },
+
+  "players":{
+    "min":1,
+    "max":4
+  },
+
+  "modes":[
+    "time",
+    "score",
+    "endless"
+  ]
+}
