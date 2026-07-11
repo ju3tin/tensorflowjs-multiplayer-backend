@@ -1,11 +1,3 @@
-/*
- Room Manager
-
- Creates and stores multiplayer rooms.
-
-*/
-
-
 const createRoomId =
 require("../utils/roomId");
 
@@ -15,15 +7,12 @@ require("./GameManager");
 
 
 
-
-
-class RoomManager{
+class RoomManager {
 
 
 constructor(){
 
-this.rooms =
-new Map();
+this.rooms = new Map();
 
 }
 
@@ -33,96 +22,56 @@ new Map();
 create(data){
 
 
-
-console.log(
-"[ROOM CREATE]",
-data
-);
-
-
-
-
-
 const room={
-
 
 
 roomId:
 createRoomId(),
 
 
-
 gameId:
 data.gameId,
 
 
-
-roomName:
-data.roomName ||
-"Game Room",
-
-
-
-
-host:
-data.host || null,
-
-
-
-status:
-"waiting",
-
-
-
-
-security:{
-
-
-joinPassword:
-data.security?.joinPassword || "",
-
-
-viewPassword:
-data.security?.viewPassword || ""
-
-},
-
-
-
-
-limits:{
-
-
-maxPlayers:
-data.limits?.maxPlayers || 4,
-
-
-maxViewers:
-data.limits?.maxViewers || 100
-
-
-},
-
-
-
-
-
-game:
-this.validateGame(
-data.game
-),
-
-
+type:
+data.type || "single",
 
 
 
 players:
-new Set(),
+new Map(),
 
 
 
 viewers:
-new Set(),
+new Map(),
+
+
+
+host:null,
+
+
+
+status:"waiting",
+
+
+
+settings:{
+
+
+mode:
+data.game?.mode || "endless",
+
+
+duration:
+data.game?.duration || null,
+
+
+targetScore:
+data.game?.targetScore || null
+
+
+},
 
 
 
@@ -136,144 +85,27 @@ engine:null
 
 
 
+room.engine =
 GameManager.create(room);
 
 
 
 
-
 this.rooms.set(
-
 room.roomId,
-
 room
-
 );
-
-
 
 
 
 console.log(
-
 "[ROOM CREATED]",
-
-room.roomId
-
+room
 );
-
-
 
 
 
 return room;
-
-
-}
-
-
-
-
-
-
-validateGame(game){
-
-
-
-if(!game){
-
-return {
-
-mode:"endless"
-
-};
-
-}
-
-
-
-
-if(game.mode==="time"){
-
-
-
-if(!game.duration){
-
-throw new Error(
-"Time game needs duration"
-);
-
-}
-
-
-
-return {
-
-mode:"time",
-
-duration:
-game.duration
-
-};
-
-
-
-}
-
-
-
-
-
-if(game.mode==="score"){
-
-
-
-if(!game.targetScore){
-
-throw new Error(
-"Score game needs targetScore"
-);
-
-}
-
-
-
-return {
-
-mode:"score",
-
-targetScore:
-game.targetScore
-
-};
-
-
-
-}
-
-
-
-
-
-if(game.mode==="endless"){
-
-
-return {
-
-mode:"endless"
-
-};
-
-
-}
-
-
-
-
-throw new Error(
-"Invalid game mode"
-);
-
 
 
 }
@@ -291,59 +123,11 @@ return this.rooms.get(id);
 
 
 
-
-list(){
-
-
-return Array.from(
-this.rooms.values()
-)
-.map(room=>({
-
-
-roomId:
-room.roomId,
-
-
-gameId:
-room.gameId,
-
-
-roomName:
-room.roomName,
-
-
-status:
-room.status,
-
-
-players:
-room.players.size,
-
-
-viewers:
-room.viewers.size,
-
-
-game:
-room.game.mode
-
-
-}));
-
-
-}
-
-
-
-
-
 remove(id){
 
 this.rooms.delete(id);
 
 }
-
 
 
 
