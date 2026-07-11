@@ -1,394 +1,238 @@
-# Multiplayer Motion Capture Server
+# Motion Game Backend
 
-Node.js backend server for a real-time multiplayer motion capture game.
+Multiplayer WebSocket backend for motion capture games.
 
-This server handles:
+Built for:
 
-* Player connections
-* Multiplayer rooms
-* Motion data broadcasting
-* Server health checks
-* Room creation and management
+- MediaPipe Pose
+- MediaPipe Hands
+- Avatar systems
+- Multiplayer games
+- Multiple game engines
 
-The frontend captures motion using MediaPipe and sends landmark data through WebSockets. The server relays this data to other players in the same room.
 
----
+## Features
 
-# Architecture
+- Express API
+- WebSocket WSS
+- Rooms
+- Players
+- Viewers
+- Game plugins
+- Motion relay
+- Render deployment
 
-```
-Mobile Browser
-      |
-      |
-MediaPipe Pose + Hands
-      |
-      |
-WebSocket (WSS)
-      |
-      |
-Node.js Server
-      |
-      |
-Other Players / Avatar Viewer
-```
-
----
-
-# Requirements
-
-* Node.js 18+
-* npm
-
----
 
 # Install
 
-Install dependencies:
 
-```bash
 npm install
-```
 
-Dependencies:
 
-* express
-* cors
-* ws
+# Start
 
----
 
-# Run Server
-
-Development:
-
-```bash
 npm start
-```
 
-Server starts:
 
-```
-HTTP Server: 8080
-WebSocket Server: 8080
-```
 
----
+# API
 
-# Environment
 
-Default:
+## Status
 
-```
-PORT=8080
-```
 
-For Render deployment:
+GET
 
-The server uses:
+/api/status
 
-```
-process.env.PORT
-```
 
-so Render can assign the correct port.
+Response:
 
----
-
-# HTTP API
-
-## Server Status
-
-Checks if the server is online.
-
-### Request
-
-```
-GET /api/status
-```
-
-### Response
-
-```json
 {
-  "online": true,
-  "service": "motion-game-server",
-  "time": 1720000000
+ "online":true
 }
-```
 
----
 
-# Rooms API
 
-## Create Room
+# Games
 
-Creates a new multiplayer room.
 
-### Request
+GET
 
-```
-POST /api/rooms/create
-```
+/api/games
 
-### Response
 
-```json
+Returns installed games.
+
+
+
+# Create Room
+
+
+POST
+
+/api/rooms/create
+
+
+
+Example:
+
+
 {
-  "roomId": "AB12CD"
+ "gameId":"dance-001",
+
+ "roomName":"Dance Room",
+
+ "host":{
+   "id":"123",
+   "name":"Player"
+ },
+
+
+ "security":{
+
+   "joinPassword":"play",
+
+   "viewPassword":"watch"
+
+ },
+
+
+ "game":{
+
+   "mode":"time",
+
+   "duration":180
+
+ }
+
 }
-```
 
-The client stores this room ID and uses it when joining through WebSocket.
 
----
 
-## List Rooms
+# WebSocket
 
-Returns available rooms.
-
-### Request
-
-```
-GET /api/rooms
-```
-
-### Response
-
-```json
-[
-  "AB12CD",
-  "GAME01"
-]
-```
-
----
-
-# WebSocket Connection
-
-The client connects using:
-
-Development:
-
-```
-ws://localhost:8080
-```
 
 Production:
 
-```
-wss://your-domain.com
-```
+wss://server.com
 
----
 
-# WebSocket Messages
+Development:
 
-## Join Room
+ws://localhost:8080
 
-Sent after connecting.
 
-```json
+
+# Join
+
+
 {
-  "type": "join",
-  "roomId": "AB12CD",
-  "playerId": "player123"
+"type":"join",
+
+"roomId":"ABC123",
+
+"role":"capture",
+
+"playerId":"player1"
+
 }
-```
 
-The server assigns the player to that room.
 
----
 
-## Joined Response
+Roles:
 
-Server replies:
 
-```json
-{
-  "type": "joined",
-  "roomId": "AB12CD",
-  "playerId": "player123"
-}
-```
+capture
 
----
+Sends motion data.
+
+
+
+viewer
+
+Only receives motion.
+
+
+
+
+
 
 # Motion Packet
 
-Motion capture clients send:
 
-```json
 {
-  "type": "motion",
-  "roomId": "AB12CD",
-  "playerId": "player123",
-  "timestamp": 1720000000,
-  "pose": [],
-  "hands": [],
-  "handedness": []
+"type":"motion",
+
+"timestamp":123456,
+
+"pose":[
+{x:0.1,y:0.2,z:0}
+],
+
+"hands":[]
 }
-```
-
----
-
-# Pose Data
-
-Pose contains MediaPipe body landmarks.
-
-Example:
-
-```json
-[
-  {
-    "x":0.5,
-    "y":0.4,
-    "z":-0.2
-  }
-]
-```
-
-MediaPipe Pose provides:
-
-```
-33 body landmarks
-```
-
----
-
-# Hand Data
-
-Hands contain MediaPipe hand landmarks.
-
-Each hand contains:
-
-```
-21 landmarks
-```
-
-Example:
-
-```json
-[
- [
-  {
-   "x":0.4,
-   "y":0.3,
-   "z":-0.1
-  }
- ]
-]
-```
-
----
-
-# Broadcasting
-
-Motion messages are only sent to players inside the same room.
-
-Example:
-
-```
-Room A
-
-Player 1
-   |
-   |
- Server
-   |
-   |
-Player 2
 
 
-Room B
 
-Player 3
-   |
-   |
- Server
-   |
-   |
-Player 4
-```
+# Game System
 
-Players in different rooms never receive each other's motion data.
 
----
+Games are plugins.
 
-# Player Flow
 
-```
-Open Game
+Add:
 
-      |
 
-Check API Status
+games/mygame/game.js
 
-      |
 
-Login
 
-      |
+Register:
 
-Create / Join Room
 
-      |
+registry.register(
+"mygame-001",
+require("./mygame/game")
+);
 
-Connect WebSocket
 
-      |
 
-Send Motion Data
+No server changes required.
 
-      |
 
-Update Avatar
-```
-
----
-
-# Future Features
-
-Planned:
-
-* Player accounts
-* Persistent rooms
-* Matchmaking
-* Spectator mode
-* Avatar synchronization
-* Bone rotation solver
-* Dance scoring
-* Replay recording
-* Motion compression
-
----
 
 # Deployment
 
-Recommended setup:
 
-```
-Frontend
-Next.js + MediaPipe
-        |
-        |
-      Vercel
+Recommended:
 
 
-Backend
-Node.js + WebSocket
-        |
-        |
-      Render
-```
+Frontend:
 
-Production WebSocket URL:
+Vercel
 
-```
-wss://your-render-domain.com
-```
 
-Production API:
+Backend:
 
-```
-https://your-render-domain.com/api/status
-```
+Render
+
+
+
+Environment:
+
+
+PORT supplied automatically by Render.
+
+
+
+# Future
+
+
+- Login
+- Avatar bones
+- Score system
+- Matchmaking
+- Spectators
+- Replay system
