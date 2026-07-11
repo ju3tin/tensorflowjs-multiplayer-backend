@@ -1,14 +1,5 @@
-/*
- GameManager
-
- Loads the correct game plugin
- and sends motion data to it.
-
-*/
-
-
 const registry =
-require("../games");
+require("../games/registry");
 
 
 
@@ -17,6 +8,7 @@ class GameManager {
 
 
 create(room){
+
 
 
 const Game =
@@ -29,57 +21,30 @@ room.gameId
 if(!Game){
 
 throw new Error(
-"Unknown game: " + room.gameId
+"Game not found"
 );
 
 }
 
 
 
-room.engine =
+const engine =
 new Game(room);
 
 
 
 console.log(
-"[GAME ENGINE CREATED]",
+"[ENGINE CREATED]",
 room.gameId
 );
 
 
 
-return room.engine;
+return engine;
 
 
 }
 
-
-
-
-
-start(room){
-
-
-if(room.engine){
-
-room.status =
-"playing";
-
-
-room.engine.start();
-
-
-console.log(
-"[GAME START]",
-room.roomId
-);
-
-
-}
-
-
-
-}
 
 
 
@@ -88,25 +53,24 @@ room.roomId
 motion(
 room,
 playerId,
-data
+motion
 ){
 
 
 
 if(
 room.engine &&
-room.engine.receiveMotion
+room.engine.onMotion
 ){
 
 
-room.engine.receiveMotion(
+room.engine.onMotion(
 
 playerId,
 
-data
+motion
 
 );
-
 
 
 }
@@ -129,12 +93,9 @@ return room.engine.getState();
 }
 
 
-return null;
-
+return {};
 
 }
-
-
 
 
 
